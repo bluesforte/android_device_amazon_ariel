@@ -1,0 +1,1571 @@
+
+project build/
+diff --git a/core/Makefile b/core/Makefile
+index b29d784..f3ee9c3 100644
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -1373,7 +1373,7 @@ ifdef BOARD_CUSTOM_BOOTIMG_MK
+ 	@# Prebuilt boot images
+ 	$(hide) mkdir -p $(zip_root)/BOOTABLE_IMAGES
+ 	$(hide) $(ACP) $(INSTALLED_BOOTIMAGE_TARGET) $(zip_root)/BOOTABLE_IMAGES/
+-	$(hide) $(ACP) $(INSTALLED_RECOVERYIMAGE_TARGET) $(zip_root)/BOOTABLE_IMAGES/
++	#$(hide) $(ACP) $(INSTALLED_RECOVERYIMAGE_TARGET) $(zip_root)/BOOTABLE_IMAGES/
+ endif
+ ifdef BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE
+ 	@# Contents of the vendor image
+diff --git a/core/combo/arch/arm/armv7-a-neon.mk b/core/combo/arch/arm/armv7-a-neon.mk
+index f63f2c6..6c59aaf 100644
+--- a/core/combo/arch/arm/armv7-a-neon.mk
++++ b/core/combo/arch/arm/armv7-a-neon.mk
+@@ -9,6 +9,9 @@ ARCH_ARM_HAVE_NEON              := true
+ ifeq ($(TARGET_CPU_VARIANT),$(filter $(TARGET_CPU_VARIANT),cortex-a15 krait))
+ 	arch_variant_cflags := -mcpu=cortex-a15 -mfpu=neon-vfpv4
+ else
++ifeq ($(strip $(TARGET_CPU_VARIANT)),cortex-a15.cortex-a7)
++	arch_variant_cflags := -mcpu=cortex-a15.cortex-a7 -mtune=cortex-a15.cortex-a7 -mfpu=neon
++else
+ ifeq ($(strip $(TARGET_CPU_VARIANT)),cortex-a9)
+ 	arch_variant_cflags := -mcpu=cortex-a9 -mfpu=neon
+ else
+@@ -31,6 +34,7 @@ endif
+ endif
+ endif
+ endif
++endif
+ 
+ arch_variant_cflags += \
+     -mfloat-abi=softfp
+diff --git a/core/main.mk b/core/main.mk
+index 16317da..5dc9c4b 100644
+--- a/core/main.mk
++++ b/core/main.mk
+@@ -190,7 +190,7 @@ $(info $(space))
+ $(info Please follow the machine setup instructions at)
+ $(info $(space)$(space)$(space)$(space)https://source.android.com/source/download.html)
+ $(info ************************************************************)
+-$(error stop)
++#$(error stop)
+ endif
+ 
+ ifndef BUILD_EMULATOR
+diff --git a/target/product/core_minimal.mk b/target/product/core_minimal.mk
+index 6e822ee..05b9efa 100644
+--- a/target/product/core_minimal.mk
++++ b/target/product/core_minimal.mk
+@@ -59,7 +59,7 @@ PRODUCT_PACKAGES += \
+     sensorservice \
+     uiautomator \
+     uncrypt
+-
++    
+ PRODUCT_BOOT_JARS := core:conscrypt:okhttp:core-junit:bouncycastle:ext:framework:framework2:android.policy:services:apache-xml:webviewchromium
+ 
+ PRODUCT_RUNTIMES := runtime_libdvm_default
+diff --git a/target/product/generic_no_telephony.mk b/target/product/generic_no_telephony.mk
+index 6a5a242..f73378d 100644
+--- a/target/product/generic_no_telephony.mk
++++ b/target/product/generic_no_telephony.mk
+@@ -40,12 +40,12 @@ PRODUCT_PACKAGES := \
+     Provision \
+     Settings \
+     SystemUI \
+-    TeleService \
+     CalendarProvider \
+     bluetooth-health \
+     hostapd \
+     wpa_supplicant.conf \
+     WallpaperCropper
++    #TeleService \
+ 
+ PRODUCT_PACKAGES += \
+     audio \
+diff --git a/tools/releasetools/ota_from_target_files b/tools/releasetools/ota_from_target_files
+index beaabc6..d0444fd 100755
+--- a/tools/releasetools/ota_from_target_files
++++ b/tools/releasetools/ota_from_target_files
+@@ -405,7 +405,6 @@ def MakeRecoveryPatch(input_tmp, output_zip, recovery_img, boot_img):
+   _, _, patch = d.ComputePatch()
+   common.ZipWriteStr(output_zip, "recovery/recovery-from-boot.p", patch)
+   Item.Get("system/recovery-from-boot.p", dir=False)
+-
+   boot_type, boot_device = common.GetTypeAndDevice("/boot", OPTIONS.info_dict)
+   recovery_type, recovery_device = common.GetTypeAndDevice("/recovery", OPTIONS.info_dict)
+ 
+
+project frameworks/av/
+diff --git a/include/media/stagefright/ColorConverter.h b/include/media/stagefright/ColorConverter.h
+index f286708..5430de5 100644
+--- a/include/media/stagefright/ColorConverter.h
++++ b/include/media/stagefright/ColorConverter.h
+@@ -25,17 +25,12 @@
+ 
+ #include <OMX_Video.h>
+ 
+-namespace android {
+-
+-#ifdef MTK_HARDWARE
+-struct MtkColorConverter;
++#ifndef ANDROID_DEFAULT_CODE
++#include <ui/PixelFormat.h>
+ #endif
++namespace android {
+ 
+ struct ColorConverter {
+-#ifdef MTK_HARDWARE
+-    // Needs access to BitmapParams.
+-    friend struct MtkColorConverter;
+-#endif
+     ColorConverter(OMX_COLOR_FORMATTYPE from, OMX_COLOR_FORMATTYPE to);
+     ~ColorConverter();
+ 
+@@ -70,10 +65,6 @@ private:
+     OMX_COLOR_FORMATTYPE mSrcFormat, mDstFormat;
+     uint8_t *mClip;
+ 
+-#ifdef MTK_HARDWARE
+-    MtkColorConverter *mMtkColorConverter;
+-#endif
+-
+     uint8_t *initClip();
+ 
+     status_t convertCbYCrY(
+@@ -91,6 +82,18 @@ private:
+     status_t convertTIYUV420PackedSemiPlanar(
+             const BitmapParams &src, const BitmapParams &dst);
+ 
++#ifndef ANDROID_DEFAULT_CODE
++    status_t convertYUVToRGBHW(const BitmapParams &src, const BitmapParams &dst);
++    status_t convertYUV420PlanarToABGR8888(const BitmapParams &src, const BitmapParams &dst);
++#ifndef MTK_USEDPFRMWK
++    bool HWYUVToRGBConversion(const BitmapParams &src, const BitmapParams &dst);
++#endif
++#ifdef MTK_USEDPFRMWK
++	void dumpColorConverterData(const char * filepath, const void * buffer, size_t size,const char * propty);
++#endif
++    bool SWYUVToRGBConversion(const BitmapParams &src, const BitmapParams &dst);
++    PixelFormat mPixelFormat;
++#endif
+     ColorConverter(const ColorConverter &);
+     ColorConverter &operator=(const ColorConverter &);
+ };
+diff --git a/media/libmediaplayerservice/Android.mk b/media/libmediaplayerservice/Android.mk
+index 79c18ef..68cfe76 100644
+--- a/media/libmediaplayerservice/Android.mk
++++ b/media/libmediaplayerservice/Android.mk
+@@ -58,12 +58,12 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+         $(call project-path-for,qcom-media)/mm-core/inc
+ endif
+ 
+-ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+-    LOCAL_C_INCLUDES += \
+-        $(TOP)/hardware/mediatek/media/include
+-    LOCAL_STATIC_LIBRARIES += \
+-        libstagefright_bufferallocator
+-endif
++#~ ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
++#~     LOCAL_C_INCLUDES += \
++#~         $(TOP)/hardware/mediatek/media/include
++#~     LOCAL_STATIC_LIBRARIES += \
++#~         libstagefright_bufferallocator
++#~ endif
+ 
+ LOCAL_MODULE:= libmediaplayerservice
+ 
+diff --git a/media/libstagefright/Android.mk b/media/libstagefright/Android.mk
+index af55235..bde8522 100644
+--- a/media/libstagefright/Android.mk
++++ b/media/libstagefright/Android.mk
+@@ -1,28 +1,14 @@
+-#
+-# This file was modified by Dolby Laboratories, Inc. The portions of the
+-# code that are surrounded by "DOLBY..." are copyrighted and
+-# licensed separately, as follows:
+-#
+-#  (C) 2012-2013 Dolby Laboratories, Inc.
+-#
+-# Licensed under the Apache License, Version 2.0 (the "License");
+-# you may not use this file except in compliance with the License.
+-# You may obtain a copy of the License at
+-#
+-#    http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing, software
+-# distributed under the License is distributed on an "AS IS" BASIS,
+-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-# See the License for the specific language governing permissions and
+-# limitations under the License.
+-#
+ LOCAL_PATH:= $(call my-dir)
+ include $(CLEAR_VARS)
+ 
+-include frameworks/av/media/libstagefright/codecs/common/Config.mk
++#~ include frameworks/av/media/libstagefright/codecs/common/Config.mk
++
++#~ $(call make-private-dependency,\
++#~   $(BOARD_CONFIG_DIR)/configs/StageFright.mk \
++#~ )
+ 
+ LOCAL_SRC_FILES:=                         \
++        APE.cpp                           \
+         ACodec.cpp                        \
+         AACExtractor.cpp                  \
+         AACWriter.cpp                     \
+@@ -33,12 +19,10 @@ LOCAL_SRC_FILES:=                         \
+         AwesomePlayer.cpp                 \
+         CameraSource.cpp                  \
+         CameraSourceTimeLapse.cpp         \
+-        ClockEstimator.cpp                \
+         DataSource.cpp                    \
+         DRMExtractor.cpp                  \
+         ESDS.cpp                          \
+         FileSource.cpp                    \
+-        FLACExtractor.cpp                 \
+         HTTPBase.cpp                      \
+         JPEGSource.cpp                    \
+         MP3Extractor.cpp                  \
+@@ -55,8 +39,6 @@ LOCAL_SRC_FILES:=                         \
+         MediaMuxer.cpp                    \
+         MediaSource.cpp                   \
+         MetaData.cpp                      \
+-        NuCachedSource2.cpp               \
+-        NuMediaExtractor.cpp              \
+         OMXClient.cpp                     \
+         OMXCodec.cpp                      \
+         OggExtractor.cpp                  \
+@@ -72,63 +54,63 @@ LOCAL_SRC_FILES:=                         \
+         Utils.cpp                         \
+         VBRISeeker.cpp                    \
+         WAVExtractor.cpp                  \
+-        WAVEWriter.cpp                    \
+         WVMExtractor.cpp                  \
+         XINGSeeker.cpp                    \
+         avc_utils.cpp                     \
+         mp4/FragmentedMP4Parser.cpp       \
+         mp4/TrackFragment.cpp             \
+-        APE.cpp                           \
++        FLACExtractor.cpp                 \
++        NuCachedSource2.cpp               \
++        NuMediaExtractor.cpp              \
++        ExtendedUtils.cpp                 \
++        ClockEstimator.cpp
+ 
+ LOCAL_C_INCLUDES:= \
++        $(TOP)/frameworks/av/include/media/ \
++        $(TOP)/frameworks/av/media/libavextensions \
+         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
+         $(TOP)/frameworks/native/include/media/hardware \
+-        $(TOP)/frameworks/native/services/connectivitymanager \
++        $(TOP)/frameworks/native/include/media/openmax \
+         $(TOP)/external/flac/include \
+         $(TOP)/external/tremolo \
+-        $(TOP)/external/openssl/include \
+-
+-ifneq ($(TI_CUSTOM_DOMX_PATH),)
+-LOCAL_C_INCLUDES += $(TI_CUSTOM_DOMX_PATH)/omx_core/inc
+-LOCAL_CPPFLAGS += -DUSE_TI_CUSTOM_DOMX
+-else
+-LOCAL_C_INCLUDES += $(TOP)/frameworks/native/include/media/openmax
+-endif
++        $(TOP)/external/libvpx/libwebm \
++        $(TOP)/system/netd/include \
+ 
+-ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
+-    ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
+-        ifeq ($(call is-chipset-in-board-platform,msm8960),true)
+-            LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
+-            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+-            LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
+-        endif
+-        ifeq ($(call is-chipset-in-board-platform,msm8974),true)
+-            # If you are using legacy mode on 8974, you will not
+-            # go to space today. Also, it probably is broken.
+-            LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
+-            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+-        endif
+-        ifneq ($(filter msm8660 msm7x30 msm7x27a,$(TARGET_BOARD_PLATFORM)),)
+-            LOCAL_SRC_FILES += LPAPlayer.cpp
+-            LOCAL_CFLAGS += -DLEGACY_LPA
+-        endif
+-        ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
+-            LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
+-        endif
+-        LOCAL_SHARED_LIBRARIES += libstagefright_mp3dec
+-    endif
+-endif
++LOCAL_C_INCLUDES += $(call project-path-for,qcom-media)/mm-core/inc
+ 
+ LOCAL_C_INCLUDES += \
+-    $(call project-path-for,qcom-media)/mm-core/inc
+-ifneq ($(TARGET_QCOM_MEDIA_VARIANT),caf-new)
+-    LOCAL_CFLAGS += -DLEGACY_MEDIA
+-endif
++        $(TOP)/mediatek/frameworks/av/media/libstagefright/include/omx_core \
++        $(TOP)/frameworks/native/services/connectivitymanager \
++        $(TOP)/external/openssl/include \
++        $(TOP)/mediatek/frameworks-ext/av/include \
++        $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
++        $(TOP)/mediatek/frameworks-ext/av/media/libstagefright/include \
++        $(TOP)/frameworks/av/libvideoeditor/lvpp \
++        $(TOP)/frameworks/native/include/media/editor \
++             
++#~ LOCAL_C_INCLUDES += \
++#~         $(TOP)/mediatek/frameworks/av/media/libstagefright/include \
++#~         $(TOP)/mediatek/frameworks-ext/av/media/libstagefright \
++#~          \
++#~         $(TOP)/mediatek/hardware/dpframework/inc \
++#~         $(TOP)/frameworks/av/media/libstagefright/include \
++#~         
++
++#~         $(TOP)/frameworks/av/include
++#~         $(TOP)/external/skia/include/images \
++#~         $(TOP)/external/skia/include/core \
++
++#~ LOCAL_C_INCLUDES += \
++#~         $(TOP)/external/aac/libAACdec/include \
++#~         $(TOP)/external/aac/libPCMutils/include \
++#~         $(TOP)/external/aac/libFDK/include \
++#~         $(TOP)/external/aac/libMpegTPDec/include \
++#~         $(TOP)/external/aac/libSBRdec/include \
++#~         $(TOP)/external/aac/libSYS/include
+ 
+ LOCAL_SHARED_LIBRARIES := \
+         libbinder \
+         libcamera_client \
+-        libconnectivitymanager \
+         libcutils \
+         libdl \
+         libdrmframework \
+@@ -147,16 +129,19 @@ LOCAL_SHARED_LIBRARIES := \
+         libutils \
+         libvorbisidec \
+         libz \
+-        libpowermanager
+-
+-#QTI FLAC Decoder
+-ifeq ($(call is-vendor-board-platform,QCOM),true)
+-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
+-LOCAL_SRC_FILES += FLACDecoder.cpp
+-LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-flac
+-LOCAL_CFLAGS := -DQTI_FLAC_DECODER
+-endif
+-endif
++        libpowermanager \
++        libdpframework \
++        libconnectivitymanager \
++
++#~ LOCAL_SHARED_LIBRARIES += libstlport
++#~ include external/stlport/libstlport.mk
++
++LOCAL_SHARED_LIBRARIES += \
++        libstagefright_enc_common \
++        libstagefright_avc_common \
++        libstagefright_foundation \
++        libdl \
++        libRScpp
+ 
+ LOCAL_STATIC_LIBRARIES := \
+         libstagefright_color_conversion \
+@@ -170,81 +155,118 @@ LOCAL_STATIC_LIBRARIES := \
+         libFLAC \
+         libmedia_helper
+ 
++LOCAL_CPPFLAGS += -DCHROMIUM_AVAILABLE=1
+ 
+-LOCAL_SRC_FILES += ExtendedCodec.cpp ExtendedExtractor.cpp ExtendedUtils.cpp
++LOCAL_CFLAGS += -Wno-multichar
++LOCAL_CFLAGS += -DMTK_HARDWARE=1
++     
++LOCAL_MTK_PATH:=../../../../mediatek/frameworks-ext/av/media/libstagefright
+ 
+-ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
+-    LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
+-    LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedPrefetchSource.cpp ExtendedWriter.cpp
+-    LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+-    LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
++LOCAL_SRC_FILES += \
++    $(LOCAL_MTK_PATH)/OggWriter.cpp   \
++    $(LOCAL_MTK_PATH)/PCMWriter.cpp
++LOCAL_SRC_FILES += \
++	$(LOCAL_MTK_PATH)/TableOfContentThread.cpp \
++    $(LOCAL_MTK_PATH)/FileSourceProxy.cpp
+ 
+-    LOCAL_C_INCLUDES += \
+-        $(call project-path-for,qcom-media)/mm-core/inc
++LOCAL_SRC_FILES += \
++#~ 	$(LOCAL_MTK_PATH)/MtkAACExtractor.cpp \
++#~ 	$(LOCAL_MTK_PATH)/MMReadIOThread.cpp
++	
++#~ ifeq ($(TARGET_ARCH), arm)         
++#~ LOCAL_STATIC_LIBRARIES += libflacdec_mtk
++#~ endif
+ 
+-else #TARGET_ENABLE_AV_ENHANCEMENTS
+-ifeq ($(TARGET_ENABLE_OFFLOAD_ENHANCEMENTS),true)
+-    LOCAL_CFLAGS += -DENABLE_OFFLOAD_ENHANCEMENTS
+-endif
+-endif
++#~ LOCAL_SRC_FILES += $(LOCAL_MTK_PATH)/LivePhotoSource.cpp          \
++#~                    $(LOCAL_MTK_PATH)/MPEG4FileCacheWriter.cpp     \
++#~                    $(LOCAL_MTK_PATH)/VideoQualityController.cpp
+ 
+-ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+-    ifeq ($(BOARD_MTK_OMX_USES_PRIVATE_YUV),true)
+-        LOCAL_CFLAGS += -DMTK_OMX_USES_PRIVATE_YUV
+-    endif
++LOCAL_SRC_FILES += \
++        ../../../../frameworks/av/libvideoeditor/lvpp/I420ColorConverter.cpp
++  
++#~ ifeq ($(MTK_FLV_PLAYBACK_SUPPORT),yes)   
++#~ LOCAL_SRC_FILES += $(LOCAL_MTK_PATH)/MtkFLVExtractor.cpp
++#~ endif
+ 
+-    LOCAL_C_INCLUDES += \
+-        $(TOP)/hardware/mediatek/media/include
++#~ LOCAL_SHARED_LIBRARIES += libskia
+ 
+-    LOCAL_SHARED_LIBRARIES +=  \
+-        libdpframework \
+-        libstagefright_memutil
++#~ ifeq ($(MTK_AUDIO_APE_SUPPORT),yes)
++LOCAL_SRC_FILES += \
++#~         $(LOCAL_MTK_PATH)/APEExtractor.cpp \
++#~         $(LOCAL_MTK_PATH)/apetag.cpp
++#~ endif
++#~ LOCAL_SRC_FILES += \
++#~         $(LOCAL_MTK_PATH)/MtkFLACExtractor.cpp      
++       
+ 
+-    LOCAL_STATIC_LIBRARIES += \
+-        libstagefright_bufferallocator \
+-        libstagefright_mtkcolorconverter
+-endif
+ 
+-LOCAL_SRC_FILES += \
+-        chromium_http_stub.cpp
+-LOCAL_CPPFLAGS += -DCHROMIUM_AVAILABLE=1
++#~ ifeq ($(MTK_AUDIO_DDPLUS_SUPPORT),yes)   
++#~ LOCAL_C_INCLUDES += $(TOP)/frameworks/av/media/libstagefright/include
++#~ endif
+ 
+-LOCAL_SHARED_LIBRARIES += libstlport
+-include external/stlport/libstlport.mk
++#~ ifeq ($(TARGET_ARCH), arm)         
++#~ LOCAL_C_INCLUDES += $(TOP)/mediatek/external/flacdec/include
++#~ else
++#~ LOCAL_C_INCLUDES += $(TOP)/external/flac/include
++#~ endif
+ 
+-LOCAL_SHARED_LIBRARIES += \
+-        libstagefright_enc_common \
+-        libstagefright_avc_common \
+-        libstagefright_foundation \
+-        libdl
++#~ LOCAL_STATIC_LIBRARIES += libstagefright_rtsp
+ 
+-LOCAL_CFLAGS += -Wno-multichar
++#~ LOCAL_SRC_FILES += NuCachedWrapperSource.cpp  
+ 
+-ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
+-LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
+-endif
+ 
+-# Include native color format header path
+-LOCAL_C_INCLUDES += \
+-	$(TOP)/hardware/samsung/exynos4/hal/include \
+-	$(TOP)/hardware/samsung/exynos4/include
++#~ ifeq ($(strip $(MTK_AVI_PLAYBACK_SUPPORT)), yes)
++#~ 	LOCAL_SRC_FILES += $(LOCAL_MTK_PATH)/MtkAVIExtractor.cpp
++#~ endif
+ 
++#~ ifeq ($(strip $(MTK_OGM_PLAYBACK_SUPPORT)), yes)
++#~         LOCAL_SRC_FILES += $(LOCAL_MTK_PATH)/OgmExtractor.cpp
++#~ endif
+ 
+-ifeq ($(BOARD_USE_TI_DUCATI_H264_PROFILE), true)
+-LOCAL_CFLAGS += -DUSE_TI_DUCATI_H264_PROFILE
++ifeq ($(strip $(MTK_DRM_APP)),yes)
++    LOCAL_C_INCLUDES += \
++        $(TOP)/mediatek/frameworks/av/include
++    LOCAL_SHARED_LIBRARIES += \
++        libdrmmtkutil
+ endif
+ 
+-ifdef DOLBY_UDC
+-  LOCAL_CFLAGS += -DDOLBY_UDC
+-endif #DOLBY_UDC
+-ifdef DOLBY_UDC_MULTICHANNEL
+-  LOCAL_CFLAGS += -DDOLBY_UDC_MULTICHANNEL
+-endif #DOLBY_UDC_MULTICHANNEL
++#~ LOCAL_C_INCLUDES += \
++#~ 			$(TOP)/$(MTK_PATH_CUSTOM)/native/vr
++
++LOCAL_STATIC_LIBRARIES += libFraunhoferAAC
++
++#MediaRecord CameraSource 
++#~ ifeq ($(HAVE_AEE_FEATURE),yes)
++#~ LOCAL_SHARED_LIBRARIES += libaed
++#~ LOCAL_C_INCLUDES += $(MTK_ROOT)/external/aee/binary/inc
++#~ LOCAL_CFLAGS += -DHAVE_AEE_FEATURE
++#~ endif
+ 
++# playready
++#LOCAL_CFLAGS += -DMTK_PLAYREADY_SUPPORT
++#LOCAL_CFLAGS += -DPLAYREADY_SVP_UT
++LOCAL_CFLAGS += -DUT_NO_SVP_DRM
++#LOCAL_CFLAGS += -DPLAYREADY_SVP_TPLAY             # Tplay set handle to disp
++
++#~ endif    # MTK_USE_ANDROID_MM_DEFAULT_CODE
++
++LOCAL_SHARED_LIBRARIES += libstagefright_memutil
++
++ifneq ($(TARGET_BUILD_VARIANT),user)
++#For MTB support
++LOCAL_SHARED_LIBRARIES += libmtb
++LOCAL_C_INCLUDES += $(TOP)/mediatek/external/mtb
++LOCAL_CFLAGS += -DMTB_SUPPORT
++endif
++
++ifeq ($(strip $(MTK_VIDEO_HEVC_SUPPORT)),yes)
++LOCAL_CFLAGS += -DMTK_VIDEO_HEVC_SUPPORT
++endif
+ LOCAL_MODULE:= libstagefright
+ 
+-LOCAL_MODULE_TAGS := optional
++# LOCAL_MODULE_TAGS := optional
+ 
+ include $(BUILD_SHARED_LIBRARY)
+ 
+ include $(call all-makefiles-under,$(LOCAL_PATH))
++
+diff --git a/media/libstagefright/colorconversion/Android.mk b/media/libstagefright/colorconversion/Android.mk
+index 38df650..544ce1b 100644
+--- a/media/libstagefright/colorconversion/Android.mk
++++ b/media/libstagefright/colorconversion/Android.mk
+@@ -6,14 +6,18 @@ LOCAL_SRC_FILES:=                     \
+         SoftwareRenderer.cpp
+ 
+ LOCAL_C_INCLUDES := \
++        $(TOP)/frameworks/av/media/libstagefright/include/omx_core \
+         $(TOP)/frameworks/native/include/media/openmax \
+         $(TOP)/hardware/msm7k
+ 
++LOCAL_SHARED_LIBRARIES := libdpframework
+ 
+-ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
++LOCAL_CFLAGS += -DMTK_HARDWARE=1
++#~ ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+     LOCAL_C_INCLUDES += \
+-        $(TOP)/hardware/mediatek/media/include
+-endif
++        $(TOP)/hardware/mediatek/media/include \
++        $(TOP)/device/amazon/ariel/libdpframework/include
++#~ endif
+ 
+ LOCAL_MODULE:= libstagefright_color_conversion
+ 
+diff --git a/media/libstagefright/colorconversion/ColorConverter.cpp b/media/libstagefright/colorconversion/ColorConverter.cpp
+index 1577cda..7ea18ed 100644
+--- a/media/libstagefright/colorconversion/ColorConverter.cpp
++++ b/media/libstagefright/colorconversion/ColorConverter.cpp
+@@ -22,8 +22,25 @@
+ #include <media/stagefright/ColorConverter.h>
+ #include <media/stagefright/MediaErrors.h>
+ 
+-#ifdef MTK_HARDWARE
+-#include <mtkcolorconverter/MtkColorConverter.h>
++#ifndef ANDROID_DEFAULT_CODE
++#include "OMX_IVCommon.h"
++#include <ctype.h>
++#include <cutils/properties.h>
++
++#define MEM_ALIGN_32              32
++#define BITBLT_TRYALLOCMEMCOUNT   200
++
++#ifdef MTK_USEDPFRMWK
++#include "DpBlitStream.h"
++#else
++#include "MediaHal.h"
++#endif
++
++#endif
++#ifndef ANDROID_DEFAULT_CODE
++#include <stdio.h>
++#include <cutils/properties.h>
++#include <utils/Timers.h>
+ #endif
+ 
+ namespace android {
+@@ -33,35 +50,37 @@ ColorConverter::ColorConverter(
+     : mSrcFormat(from),
+       mDstFormat(to),
+       mClip(NULL) {
+-#ifdef MTK_HARDWARE
+-    mMtkColorConverter = new MtkColorConverter(this);
+-#endif
+ }
+ 
+ ColorConverter::~ColorConverter() {
+     delete[] mClip;
+     mClip = NULL;
+-#ifdef MTK_HARDWARE
+-    delete mMtkColorConverter;
+-    mMtkColorConverter = NULL;
+-#endif
+ }
+ 
+ bool ColorConverter::isValid() const {
++#ifndef ANDROID_DEFAULT_CODE
++	ALOGD ("isValid: src format: 0x%x, Dst format: 0x%x", 
++		mSrcFormat, mDstFormat);
++    if ((mDstFormat != OMX_COLOR_Format16bitRGB565) && (mDstFormat != OMX_COLOR_Format32bitARGB8888)) {
++		
++			return false;
++		}
++#else
+     if (mDstFormat != OMX_COLOR_Format16bitRGB565) {
++
+         return false;
+     }
+-
+-    switch (mSrcFormat) {
++#endif   
++switch (mSrcFormat) {
+         case OMX_COLOR_FormatYUV420Planar:
+         case OMX_COLOR_FormatCbYCrY:
+         case OMX_QCOM_COLOR_FormatYVU420SemiPlanar:
+         case OMX_COLOR_FormatYUV420SemiPlanar:
+         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+-#ifdef MTK_HARDWARE
+-        case OMX_MTK_COLOR_FormatYV12:
+-        case OMX_COLOR_FormatVendorMTKYUV:
+-        case OMX_COLOR_FormatVendorMTKYUV_FCM:
++#ifndef ANDROID_DEFAULT_CODE
++	    case OMX_MTK_COLOR_FormatYV12:
++		case OMX_COLOR_FormatVendorMTKYUV:
++		case OMX_COLOR_FormatVendorMTKYUV_FCM:
+ #endif
+             return true;
+ 
+@@ -101,9 +120,16 @@ status_t ColorConverter::convert(
+         size_t dstWidth, size_t dstHeight,
+         size_t dstCropLeft, size_t dstCropTop,
+         size_t dstCropRight, size_t dstCropBottom) {
++#ifndef ANDROID_DEFAULT_CODE
++    if ((mDstFormat != OMX_COLOR_Format16bitRGB565) && (mDstFormat != OMX_COLOR_Format32bitARGB8888)) {
++		return ERROR_UNSUPPORTED;
++    }
++#else
+     if (mDstFormat != OMX_COLOR_Format16bitRGB565) {
++
+         return ERROR_UNSUPPORTED;
+     }
++#endif
+ 
+     BitmapParams src(
+             const_cast<void *>(srcBits),
+@@ -119,9 +145,9 @@ status_t ColorConverter::convert(
+ 
+     switch (mSrcFormat) {
+         case OMX_COLOR_FormatYUV420Planar:
+-#ifdef MTK_HARDWARE
+-            err = mMtkColorConverter->convertYUVToRGBHW(src, dst);
+-#else
++#ifndef ANDROID_DEFAULT_CODE
++            err = convertYUVToRGBHW(src, dst);
++#else            
+             err = convertYUV420Planar(src, dst);
+ #endif
+             break;
+@@ -142,11 +168,14 @@ status_t ColorConverter::convert(
+             err = convertTIYUV420PackedSemiPlanar(src, dst);
+             break;
+ 
+-#ifdef MTK_HARDWARE
++#ifndef ANDROID_DEFAULT_CODE
++        /*
++         * FIXME: Need to implement onvertYV12ToRGBHW(src, dst)
++         */  
+         case OMX_MTK_COLOR_FormatYV12:
+-        case OMX_COLOR_FormatVendorMTKYUV:
+-        case OMX_COLOR_FormatVendorMTKYUV_FCM:
+-            err = mMtkColorConverter->convertYUVToRGBHW(src, dst);
++		case OMX_COLOR_FormatVendorMTKYUV:
++		case OMX_COLOR_FormatVendorMTKYUV_FCM:
++            err = convertYUVToRGBHW(src, dst);
+             break;
+ #endif
+ 
+@@ -549,4 +578,466 @@ uint8_t *ColorConverter::initClip() {
+     return &mClip[-kClipMin];
+ }
+ 
++#ifndef ANDROID_DEFAULT_CODE
++// convert MTKYUV to RGB565 (SW)
++bool ColorConverter::SWYUVToRGBConversion(const BitmapParams &src, const BitmapParams &dst)
++{
++    status_t err;
++
++    if (mDstFormat == OMX_COLOR_Format16bitRGB565) {
++        err = convertYUV420Planar(src, dst);
++    }
++    else if (mDstFormat == OMX_COLOR_Format32bitARGB8888) {
++        err = convertYUV420PlanarToABGR8888(src, dst);
++    }
++    else {
++        ALOGE ("[ERROR] Unsupported dst format (0x%08X) in SWYUVToRGBConversion");
++        err = ERROR_UNSUPPORTED;
++    }
++
++    if (err == OK) {
++        return true;
++    }
++    else {
++        return false;
++    }
++}
++
++#ifndef MTK_USEDPFRMWK
++// convert MTKYUV/YUV420 to RGB565/ARGB8888 (HW)
++bool ColorConverter::HWYUVToRGBConversion(const BitmapParams &src, const BitmapParams &dst)
++{
++    MHAL_UINT8 *YUVbuf_va = NULL;
++    MHAL_UINT8 *YUVbuf_pa = NULL;
++    MHAL_UINT8 *RGBbuf_va = NULL;
++    MHAL_UINT8 *RGBbuf_pa = NULL;
++    MHAL_UINT32 BufferSize = 0;
++    mHalBltParam_t bltParam;
++
++    MHAL_UINT32 u4TryAllocMemCount;
++    bool bRetVal;
++
++    memset(&bltParam, 0, sizeof(bltParam));
++
++    u4TryAllocMemCount = BITBLT_TRYALLOCMEMCOUNT;
++    YUVbuf_va = NULL;
++
++    int srcWidth = src.cropWidth();
++    int srcHeight = src.cropHeight();
++    int srcWStride = (srcWidth + 15) & 0xFFFFFFF0;
++    int srcHStride = (srcHeight + 15) & 0xFFFFFFF0;
++    int dstWidth = dst.cropWidth();
++    int dstHeight = dst.cropHeight();
++
++    ALOGD("HWYUVToRGBConversion, tid:%d, CropLeft(%d), CropTop(%d), srcWidth(%d), srcHeight(%d), dstWidth(%d), dstHeight(%d), mSrcFormat(%d), mDstFormat(%d)",
++        gettid(), src.mCropLeft, src.mCropTop, srcWidth, srcHeight, dstWidth, dstHeight, mSrcFormat, mDstFormat);
++       
++    while (u4TryAllocMemCount) {
++        BufferSize = ((((srcWStride * srcHStride * 3) >> 1)+(MEM_ALIGN_32-1)) & ~(MEM_ALIGN_32-1));
++        YUVbuf_va = (MHAL_UINT8 *)memalign(MEM_ALIGN_32, BufferSize);    // 16 byte alignment for MDP
++
++        if (YUVbuf_va == NULL) {
++            ALOGE("Alloc YUVbuf_va fail %d times!!, Try alloc again!!", (BITBLT_TRYALLOCMEMCOUNT-u4TryAllocMemCount));
++            u4TryAllocMemCount--;
++            usleep(10*1000);
++        }
++        else {
++            ALOGD("Alloc YUVbuf_va 0x%08x Success, size (%u)", (MHAL_UINT32)YUVbuf_va, BufferSize);
++            break;
++        }
++    }
++
++    if (YUVbuf_va == NULL) {
++        ALOGE("Alloc YUVbuf_va fail %d times!!, Return error!!\n", BITBLT_TRYALLOCMEMCOUNT);
++        return false;
++    }
++
++    u4TryAllocMemCount = BITBLT_TRYALLOCMEMCOUNT;
++    RGBbuf_va = NULL;
++            
++    while (u4TryAllocMemCount) {
++        switch (mDstFormat) {
++            case OMX_COLOR_Format16bitRGB565:
++                BufferSize = (((dstWidth * dstHeight * 2)+(MEM_ALIGN_32-1)) & ~(MEM_ALIGN_32-1));
++                break;
++            case OMX_COLOR_Format32bitARGB8888:
++                BufferSize = (((dstWidth * dstHeight * 4)+(MEM_ALIGN_32-1)) & ~(MEM_ALIGN_32-1));
++                break;
++            default:
++                ALOGE ("[ERROR] Unsupported dest format A (%d)", mDstFormat);
++                free (YUVbuf_va);
++                return false;
++            }
++        
++        RGBbuf_va = (MHAL_UINT8 *)memalign(MEM_ALIGN_32, BufferSize);
++    
++        if (RGBbuf_va == NULL){
++            ALOGE("Alloc RGBbuf_va fail %d times!!, Try alloc again!!", (BITBLT_TRYALLOCMEMCOUNT-u4TryAllocMemCount));
++            u4TryAllocMemCount--;
++            usleep(10*1000);
++        }
++        else {
++            ALOGD("Alloc RGBbuf_va 0x%08x Success, size (%u)", (MHAL_UINT32)RGBbuf_va, BufferSize);
++            break;
++        }
++    }
++    
++    if (RGBbuf_va == NULL) {
++        ALOGE("Alloc RGBbuf_va fail %d times!!, Return error!!\n", BITBLT_TRYALLOCMEMCOUNT);
++        return false;
++    }
++
++    memcpy(YUVbuf_va, src.mBits,((srcWStride * srcHStride * 3) >> 1));
++    bltParam.srcAddr = (MHAL_UINT32)YUVbuf_va;
++
++    switch (mSrcFormat) {
++        case OMX_COLOR_FormatYUV420Planar:
++            bltParam.srcFormat = MHAL_FORMAT_YUV_420;
++            break;
++
++        case OMX_MTK_COLOR_FormatYV12:
++            /*
++             * FIXME: Need to set bltParam.srcFormat = MHAL_FORMAT_IMG_YV12;
++             */  
++            bltParam.srcFormat = MHAL_FORMAT_YUV_420;
++            //bltParam.srcFormat = MHAL_FORMAT_IMG_YV12;
++            break;
++
++        default:
++            ALOGE ("[ERROR] Unsupported source format (%d)", mSrcFormat);
++            bltParam.srcFormat = MHAL_FORMAT_YUV_420;
++            break;
++    }
++
++    bltParam.srcX = src.mCropLeft;
++    bltParam.srcY = src.mCropTop;
++    bltParam.srcW = srcWidth;
++    bltParam.srcWStride = srcWStride;
++    bltParam.srcH = srcHeight;
++    bltParam.srcHStride = srcHStride;
++
++    bltParam.dstAddr = (MHAL_UINT32)RGBbuf_va;
++
++    switch (mDstFormat) {
++        case OMX_COLOR_Format16bitRGB565:
++            bltParam.dstFormat = MHAL_FORMAT_RGB_565;
++            break;
++        case OMX_COLOR_Format32bitARGB8888:
++            bltParam.dstFormat = MHAL_FORMAT_ABGR_8888;
++            break;
++        default:
++            ALOGE ("[ERROR] Unsupported dest format (%d)", mDstFormat);
++            bltParam.dstFormat = MHAL_FORMAT_RGB_565;
++            break;
++    }
++
++    bltParam.dstW = dstWidth;
++    bltParam.dstH = dstHeight;
++    bltParam.pitch = dstWidth; //_mDisp.dst_pitch;
++    //bltParam.orientation = _mRotation;
++    bltParam.orientation = 0;
++
++    bltParam.doImageProcess = 1;
++
++#if 0
++    ALOGE("bltParam.srcX = %d",bltParam.srcX);
++    ALOGE("bltParam.srcY = %d",bltParam.srcY);
++    ALOGE("bltParam.srcW = %d",bltParam.srcW);
++    ALOGE("bltParam.srcWStride = %d",bltParam.srcWStride);
++    ALOGE("bltParam.srcH = %d",bltParam.srcH);
++    ALOGE("bltParam.srcHStride = %d",bltParam.srcHStride);
++    ALOGE("bltParam.dstW = %d",bltParam.dstW);
++    ALOGE("bltParam.dstH = %d",bltParam.dstH);
++    ALOGE("bltParam.pitch = %d",bltParam.pitch);
++#endif
++
++    if (MHAL_NO_ERROR != mHalIoCtrl(MHAL_IOCTL_BITBLT, &bltParam, sizeof(bltParam), NULL, 0, NULL)) {
++        ALOGE("[BITBLT][ERROR] IDP_bitblt() can't do bitblt operation, use SW conversion");
++        free (RGBbuf_va);
++        free (YUVbuf_va);
++        bRetVal = SWYUVToRGBConversion(src, dst);
++        return bRetVal;
++    }
++    else {
++        switch (mDstFormat) {
++            case OMX_COLOR_Format16bitRGB565:
++                memcpy(dst.mBits, RGBbuf_va, (dstWidth * dstHeight * 2));
++                break;
++            case OMX_COLOR_Format32bitARGB8888:
++                memcpy(dst.mBits, RGBbuf_va, (dstWidth * dstHeight * 4));
++                break;
++            default:
++                ALOGE ("[ERROR] Unsupported dest format B (%d)", mDstFormat);
++                free (RGBbuf_va);
++                free (YUVbuf_va);
++                return false;
++        }
++        
++        free (RGBbuf_va);
++        free (YUVbuf_va);
++        return true;
++    }
++    
++    return true;
++}
++#endif
++
++status_t ColorConverter::convertYUVToRGBHW(const BitmapParams &src, const BitmapParams &dst)
++{
++#ifdef MTK_USEDPFRMWK
++	ALOGD("srcWidth(%d), srcHeight(%d), srcCropLeft(%d), srcCropTop(%d), srcCropRight(%d), srcCropBottom(%d)",
++       src.mWidth, src.mHeight, src.mCropLeft, src.mCropTop, src.mCropRight, src.mCropBottom);
++    ALOGD("dstWidth(%d), dstHeight(%d), dstCropLeft(%d), dstCropTop(%d), dstCropRight(%d), dstCropBottom(%d)",
++       dst.mWidth, dst.mHeight, dst.mCropLeft, dst.mCropTop, dst.mCropRight, dst.mCropBottom);
++    DpBlitStream blitStream;
++//    int srcWidth = src.cropWidth();
++//    int srcHeight = src.cropHeight();
++    unsigned int srcWStride = src.mWidth; 
++    unsigned int srcHStride = src.mHeight; 
++	
++    DpRect srcRoi;
++    srcRoi.x = 0;
++    srcRoi.y = 0;
++    srcRoi.w = dst.mWidth;
++    srcRoi.h = dst.mHeight;
++
++    ALOGD("src stride aligned, w(%d), h(%d)", srcWStride, srcHStride);
++
++    unsigned int dstWStride = dst.mWidth ;
++    unsigned int dstHStride = dst.mHeight ;
++	char name_yuv[100];
++	char retriever_yuv_propty[100];
++	char name_rgb[100];
++	char retriever_propty_rgb[100];
++	
++    if (mSrcFormat == OMX_COLOR_FormatYUV420Planar) {
++        char* planar[3];
++        unsigned int length[3];
++        planar[0] = (char*)src.mBits;
++        length[0] = srcWStride*srcHStride;
++        planar[1] = planar[0] + length[0];
++        length[1] = srcWStride*srcHStride/4;
++        planar[2] = planar[1] + length[1];
++        length[2] = length[1];
++        ALOGD("Yaddr(%p), Uaddr(%p), Vaddr(%p) YUV420P", planar[0], planar[1], planar[2]);
++        ALOGD("Ylen(%d), Ulen(%d), Vlen(%d)", length[0], length[1], length[2]);
++
++        blitStream.setSrcBuffer((void**)planar, (unsigned int*)length, 3);
++        blitStream.setSrcConfig(srcWStride, srcHStride, eYUV_420_3P, eInterlace_None, &srcRoi);
++    }
++    if (mSrcFormat == OMX_MTK_COLOR_FormatYV12) {
++        char* planar[3];
++        unsigned int length[3];
++        planar[0] = (char*)src.mBits;
++        length[0] = srcWStride*srcHStride;
++        planar[1] = planar[0] + length[0];
++        length[1] = srcWStride*srcHStride/4;
++        planar[2] = planar[1] + length[1];
++        length[2] = length[1];
++        ALOGD("Yaddr(%p), Uaddr(%p), Vaddr(%p) YV12", planar[0], planar[1], planar[2]);
++        ALOGD("Ylen(%d), Ulen(%d), Vlen(%d)", length[0], length[1], length[2]);
++
++        blitStream.setSrcBuffer((void**)planar, (unsigned int*)length, 3);
++        blitStream.setSrcConfig(srcWStride, srcHStride, eYV12, eInterlace_None, &srcRoi);
++    }
++    else if (mSrcFormat == OMX_COLOR_FormatVendorMTKYUV) {
++        char* planar[2];
++        unsigned int length[2];
++        planar[0] = (char*)src.mBits;
++        length[0] = srcWStride*srcHStride;
++        planar[1] = planar[0] + length[0];
++        length[1] = srcWStride*srcHStride/2;
++        ALOGD("Yaddr(%p), Caddr(%p)", planar[0], planar[1]);
++        ALOGD("Ylen(%d), Clen(%d)", length[0], length[1]);
++
++        blitStream.setSrcBuffer((void**)planar, (unsigned int*)length, 2);
++        //blitStream.setSrcConfig(srcWStride, srcHStride, eNV12_BLK, eInterlace_None, &srcRoi);	
++        blitStream.setSrcConfig(srcWStride, srcHStride, srcWStride * 32, srcWStride * 16, eNV12_BLK, DP_PROFILE_BT601, eInterlace_None, &srcRoi);
++	
++    }
++    else if (mSrcFormat == OMX_COLOR_FormatVendorMTKYUV_FCM) {
++        char* planar[2];
++        unsigned int length[2];
++        planar[0] = (char*)src.mBits;
++        length[0] = srcWStride*srcHStride;
++        planar[1] = planar[0] + length[0];
++        length[1] = srcWStride*srcHStride/2;
++        ALOGD("Yaddr(%p), Caddr(%p)", planar[0], planar[1]);
++        ALOGD("Ylen(%d), Clen(%d)", length[0], length[1]);
++
++        blitStream.setSrcBuffer((void**)planar, (unsigned int*)length, 2);
++        //blitStream.setSrcConfig(srcWStride, srcHStride, eNV12_BLK_FCM, eInterlace_None, &srcRoi);
++        blitStream.setSrcConfig(srcWStride, srcHStride, srcWStride * 32, srcWStride * 16, eNV12_BLK_FCM, DP_PROFILE_BT601, eInterlace_None, &srcRoi);
++    }
++
++    ALOGD("dst addr(%p), w(%d), h(%d)", dst.mBits, dstWStride, dstHStride);
++    if (mDstFormat == OMX_COLOR_Format16bitRGB565) {
++        blitStream.setDstBuffer(dst.mBits, dst.mWidth * dst.mHeight * 2);
++        blitStream.setDstConfig(dst.mWidth, dst.mHeight, eRGB565);
++    }
++    else if (mDstFormat == OMX_COLOR_Format32bitARGB8888) {
++        blitStream.setDstBuffer(dst.mBits, dst.mWidth * dst.mHeight * 4);
++    //	blitStream.setDstConfig(dst.mWidth, dst.mHeight, eARGB8888);
++        blitStream.setDstConfig(dst.mWidth, dst.mHeight, eRGBA8888);
++    }
++    
++	sprintf(name_yuv, "/sdcard/retriever_%lld_%lu_%lu.yuv",systemTime(),src.mWidth,src.mHeight);
++	sprintf(retriever_yuv_propty, "retriever.dump.yuv");		
++	dumpColorConverterData(name_yuv,src.mBits,(src.mWidth*src.mHeight)*(size_t)3/(size_t)2,retriever_yuv_propty);
++
++    //Add Sharpness in Video Thumbnail
++    blitStream.setTdshp(1);
++    bool bRet = blitStream.invalidate();
++    ALOGI("blitStream return %d.", bRet);
++
++	sprintf(name_rgb, "/sdcard/retriever_%lld%_lu_%lu.rgb",systemTime(),dst.mWidth,dst.mHeight);
++	sprintf(retriever_propty_rgb, "retriever.dump.rgb");
++	if (mDstFormat == OMX_COLOR_Format16bitRGB565) {
++		dumpColorConverterData(name_rgb,dst.mBits, dst.mWidth*dst.mHeight*2, retriever_propty_rgb); 
++	} else if(mDstFormat == OMX_COLOR_Format32bitARGB8888){
++		dumpColorConverterData(name_rgb,dst.mBits, dst.mWidth*dst.mHeight*4, retriever_propty_rgb); 
++	}
++	
++	if(!bRet)
++		return OK;
++	else
++		return UNKNOWN_ERROR;
++	// debug: dump output buffer
++/*	sprintf(name, "/sdcard/clrcvt_output_%d_dmp", i);
++	fp = fopen(name, "w");
++	if (mDstFormat == OMX_COLOR_Format16bitRGB565)
++		fwrite(dst.mBits, dst.mWidth*dst.mHeight*2, 1, fp);
++	else if (mDstFormat == OMX_COLOR_Format32bitARGB8888)
++		fwrite(dst.mBits, dst.mWidth*dst.mHeight*4, 1, fp);
++	fclose(fp);
++	i++;
++*/
++#else
++    if (!((src.mCropLeft & 1) == 0  && src.cropWidth() == dst.cropWidth() && src.cropHeight() == dst.cropHeight())) {
++        return ERROR_UNSUPPORTED;
++    }
++    
++    MHAL_BOOL LockScenario = MHAL_FALSE;
++    MHalLockParam_t inLockParam;
++    inLockParam.mode = MHAL_MODE_BITBLT;
++    inLockParam.waitMilliSec = 1000;
++    inLockParam.waitMode = MHAL_MODE_BITBLT;
++    if(MHAL_NO_ERROR != mHalIoCtrl(MHAL_IOCTL_LOCK_RESOURCE, (MHAL_VOID *)&inLockParam, sizeof(inLockParam), NULL, 0, NULL))
++    {
++        ALOGE("[BITBLT][ERROR] mHalIoCtrl() - MT65XX_HW_BITBLT Can't Lock!!!!, TID:%d", gettid());
++        LockScenario = MHAL_FALSE;
++    }
++    else
++    {
++        ALOGE("[BITBLT] mHalIoCtrl() - MT65XX_HW_BITBLT Lock!!!!, TID:%d", gettid());
++        LockScenario = MHAL_TRUE;
++    }
++
++    if (LockScenario == MHAL_TRUE)
++    {
++        MHAL_BOOL bflag;
++        bflag = HWYUVToRGBConversion(src, dst);
++
++        MHAL_UINT32 lock_mode;
++        lock_mode = MHAL_MODE_BITBLT;
++
++        if(MHAL_NO_ERROR != mHalIoCtrl(MHAL_IOCTL_UNLOCK_RESOURCE, (MHAL_VOID *)&lock_mode, sizeof(lock_mode), NULL, 0, NULL))
++        {
++            ALOGD("[BITBLT][ERROR] mHalIoCtrl() - MT65XX_HW_BITBLT Can't UnLock!!!!, TID:%d", gettid());
++        }
++        else
++        {
++            ALOGD("[BITBLT] mHalIoCtrl() - MT65XX_HW_BITBLT UnLock!!!!, TID:%d", gettid());
++        }   
++    }
++    else
++    {
++        ALOGD("Cannot lock HW, use SW converter!!!!, TID:%d", gettid());
++        SWYUVToRGBConversion(src, dst);
++    }
++#endif
++    return OK;
++}
++
++
++status_t ColorConverter::convertYUV420PlanarToABGR8888(const BitmapParams &src, const BitmapParams &dst) {
++
++    ALOGD ("ColorConverter::convertYUV420PlanarToABGR8888(SW) src.cropWidth(%d), src.cropHeight(%d), dst.cropWidth(%d), dst.cropHeight(%d)",
++        src.cropWidth(), src.cropHeight(), dst.cropWidth(), dst.cropHeight());
++
++    if (!((src.mCropLeft & 1) == 0
++            && src.cropWidth() == dst.cropWidth()
++            && src.cropHeight() == dst.cropHeight())) {
++        return ERROR_UNSUPPORTED;
++    }
++
++    uint8_t *kAdjustedClip = initClip();
++
++    uint32_t *dst_ptr = (uint32_t *)dst.mBits + dst.mCropTop * dst.mWidth + dst.mCropLeft;
++    
++    const uint8_t *src_y =  (const uint8_t *)src.mBits + src.mCropTop * src.mWidth + src.mCropLeft;
++
++    const uint8_t *src_u =
++       (const uint8_t *)src_y + src.mWidth * src.mHeight
++        + src.mCropTop * (src.mWidth / 2) + src.mCropLeft / 2;
++
++    const uint8_t *src_v =
++       src_u + (src.mWidth / 2) * (src.mHeight / 2);
++
++    for (size_t y = 0; y < src.cropHeight(); ++y) {
++        for (size_t x = 0; x < src.cropWidth(); x++) {
++            signed y1 = (signed)src_y[x] - 16;
++            signed u = (signed)src_u[x / 2] - 128;
++            signed v = (signed)src_v[x / 2] - 128;
++
++            signed u_b = u * 517;
++            signed u_g = -u * 100;
++            signed v_g = -v * 208;
++            signed v_r = v * 409;
++
++            signed tmp1 = y1 * 298;
++            signed b1 = (tmp1 + u_b) / 256;
++            signed g1 = (tmp1 + v_g + u_g) / 256;
++            signed r1 = (tmp1 + v_r) / 256;
++
++	    uint32_t rgb1 =
++                  (kAdjustedClip[r1] << 0)
++                | (kAdjustedClip[g1] << 8)
++                | (kAdjustedClip[b1] << 16)
++                | (0xFF << 24);
++                                               
++            dst_ptr[x] = rgb1;
++        }
++
++        src_y += src.mWidth;
++
++        if (y & 1) {
++            src_u += src.mWidth / 2;
++            src_v += src.mWidth / 2;
++        }
++
++        dst_ptr += dst.mWidth;
++    }
++
++    return OK;
++}
++#ifdef MTK_USEDPFRMWK
++void ColorConverter::dumpColorConverterData(const char * filepath, const void * buffer, size_t size,const char * propty) {
++
++    char value[PROPERTY_VALUE_MAX];
++    property_get(propty, value, "0");
++    int bflag=atoi(value);
++	
++    if (bflag) {
++       FILE * fp= fopen (filepath, "w");
++       if (fp!=NULL) {
++            fwrite(buffer,size,1,fp);
++            fclose(fp);
++       } else {
++            ALOGV("dump %s fail",propty);
++       }
++    }
++}
++#endif
++#endif
+ }  // namespace android
+diff --git a/media/libstagefright/include/OMXNodeInstance.h b/media/libstagefright/include/OMXNodeInstance.h
+index baf70a7..bbf3d09 100644
+--- a/media/libstagefright/include/OMXNodeInstance.h
++++ b/media/libstagefright/include/OMXNodeInstance.h
+@@ -23,6 +23,7 @@
+ #include <utils/RefBase.h>
+ #include <utils/threads.h>
+ 
++
+ namespace android {
+ 
+ class IOMXObserver;
+diff --git a/media/libstagefright/omx/Android.mk b/media/libstagefright/omx/Android.mk
+index 24bebf7..441b545 100644
+--- a/media/libstagefright/omx/Android.mk
++++ b/media/libstagefright/omx/Android.mk
+@@ -27,16 +27,16 @@ LOCAL_SHARED_LIBRARIES :=               \
+         libstagefright_foundation       \
+         libdl
+ 
+-ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+-    LOCAL_C_INCLUDES += \
+-        $(TOP)/hardware/mediatek/media/include
++#~ ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
++#~     LOCAL_C_INCLUDES += \
++#~         $(TOP)/hardware/mediatek/media/include
+ 
+-    LOCAL_SHARED_LIBRARIES += \
+-        libstagefright_memutil
++#~     LOCAL_SHARED_LIBRARIES += \
++#~         libstagefright_memutil
+ 
+-    LOCAL_STATIC_LIBRARIES += \
+-        libstagefright_bufferallocator
+-endif
++#~     LOCAL_STATIC_LIBRARIES += \
++#~         libstagefright_bufferallocator
++#~ endif
+ 
+ ifeq ($(BOARD_USES_PROPRIETARY_OMX),SAMSUNG)
+ LOCAL_CFLAGS     += -DSAMSUNG_OMX
+diff --git a/services/audioflinger/Android.mk b/services/audioflinger/Android.mk
+index 8593841..a78ab28 100644
+--- a/services/audioflinger/Android.mk
++++ b/services/audioflinger/Android.mk
+@@ -82,11 +82,11 @@ LOCAL_STATIC_LIBRARIES := \
+     libcpustats \
+     libmedia_helper
+ 
+-ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+-    LOCAL_STATIC_LIBRARIES += libstagefright_audioresamplermtk
+-    LOCAL_C_INCLUDES += $(TOP)/hardware/mediatek/media/include
+-    LOCAL_SHARED_LIBRARIES += libblisrc
+-endif
++#~ ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
++#~     LOCAL_STATIC_LIBRARIES += libstagefright_audioresamplermtk
++#~     LOCAL_C_INCLUDES += $(TOP)/hardware/mediatek/media/include
++#~     LOCAL_SHARED_LIBRARIES += libblisrc
++#~ endif
+ 
+ LOCAL_MODULE:= libaudioflinger
+ 
+@@ -139,11 +139,11 @@ LOCAL_SHARED_LIBRARIES := \
+     libutils \
+     liblog
+ 
+-ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+-    LOCAL_STATIC_LIBRARIES += libstagefright_audioresamplermtk
+-    LOCAL_C_INCLUDES += $(TOP)/hardware/mediatek/media/include
+-    LOCAL_SHARED_LIBRARIES += libblisrc
+-endif
++#~ ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
++#~     LOCAL_STATIC_LIBRARIES += libstagefright_audioresamplermtk
++#~     LOCAL_C_INCLUDES += $(TOP)/hardware/mediatek/media/include
++#~     LOCAL_SHARED_LIBRARIES += libblisrc
++#~ endif
+ 
+ LOCAL_MODULE:= test-resample
+ 
+diff --git a/services/audioflinger/AudioFlinger.cpp b/services/audioflinger/AudioFlinger.cpp
+index 974778c..c4779fc 100644
+--- a/services/audioflinger/AudioFlinger.cpp
++++ b/services/audioflinger/AudioFlinger.cpp
+@@ -127,29 +127,29 @@ size_t AudioFlinger::mTeeSinkTrackFrames = kTeeSinkTrackFramesDefault;
+ static const nsecs_t kMinGlobalEffectEnabletimeNs = seconds(7200);
+ 
+ // ----------------------------------------------------------------------------
+-#ifdef MTK_HARDWARE
+-status_t AudioFlinger::SetAudioData(int par1,size_t len,void *ptr)
+-{
+-    ALOGV("SetAudioData par1 = %d,len = %d ",par1,len);
+-    AutoMutex lock(mHardwareLock);
+-    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
+-    mHardwareStatus = AUDIO_HW_SET_PARAMETER;
+-    dev->SetAudioData(dev,par1,len,ptr);
+-    mHardwareStatus = AUDIO_HW_IDLE;
+-    return NO_ERROR;
+-}
+-
+-status_t AudioFlinger::GetAudioData(int par1,size_t len,void *ptr)
+-{
+-    ALOGV("GetAudioData par1 = %d,len = %d ",par1,len);
+-    AutoMutex lock(mHardwareLock);
+-    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
+-    mHardwareStatus = AUDIO_HW_SET_PARAMETER;
+-    dev->GetAudioData(dev,par1,len,ptr);
+-    mHardwareStatus = AUDIO_HW_IDLE;
+-    return NO_ERROR;
+-}
+-#endif
++//~ #ifdef MTK_HARDWARE
++//~ status_t AudioFlinger::SetAudioData(int par1,size_t len,void *ptr)
++//~ {
++    //~ ALOGV("SetAudioData par1 = %d,len = %d ",par1,len);
++    //~ AutoMutex lock(mHardwareLock);
++    //~ audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
++    //~ mHardwareStatus = AUDIO_HW_SET_PARAMETER;
++    //~ dev->SetAudioData(dev,par1,len,ptr);
++    //~ mHardwareStatus = AUDIO_HW_IDLE;
++    //~ return NO_ERROR;
++//~ }
++
++//~ status_t AudioFlinger::GetAudioData(int par1,size_t len,void *ptr)
++//~ {
++    //~ ALOGV("GetAudioData par1 = %d,len = %d ",par1,len);
++    //~ AutoMutex lock(mHardwareLock);
++    //~ audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
++    //~ mHardwareStatus = AUDIO_HW_SET_PARAMETER;
++    //~ dev->GetAudioData(dev,par1,len,ptr);
++    //~ mHardwareStatus = AUDIO_HW_IDLE;
++    //~ return NO_ERROR;
++//~ }
++//~ #endif
+ 
+ static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
+ {
+@@ -1060,14 +1060,14 @@ status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
+         thread->setStreamVolume(stream, value);
+     }
+ 
+-#ifdef MTK_HARDWARE
+-    // FM Volume is controlled by hardware, we want to keep it in sync with
+-    // the music stream.
+-    if (stream == AUDIO_STREAM_MUSIC) {
+-        audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
+-        dev->set_parameters(dev, String8::format("SetFmVolume=%f", value));
+-    }
+-#endif
++//~ #ifdef MTK_HARDWARE
++    //~ // FM Volume is controlled by hardware, we want to keep it in sync with
++    //~ // the music stream.
++    //~ if (stream == AUDIO_STREAM_MUSIC) {
++        //~ audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
++        //~ dev->set_parameters(dev, String8::format("SetFmVolume=%f", value));
++    //~ }
++//~ #endif
+ 
+     return NO_ERROR;
+ }
+@@ -2216,9 +2216,9 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
+     // resample the input and do mono to stereo or stereo to mono conversions on 16 bit PCM inputs.
+     if (status == BAD_VALUE &&
+         reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
+-#ifndef MTK_HARDWARE
++//~ #ifndef MTK_HARDWARE
+         (config.sample_rate <= 2 * reqSamplingRate) &&
+-#endif
++//~ #endif
+         (getInputChannelCount(config.channel_mask) <= FCC_2) && (getInputChannelCount(reqChannels) <= FCC_2)) {
+         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
+         inStream = NULL;
+diff --git a/services/audioflinger/AudioFlinger.h b/services/audioflinger/AudioFlinger.h
+index 78075d4..9ef199f 100644
+--- a/services/audioflinger/AudioFlinger.h
++++ b/services/audioflinger/AudioFlinger.h
+@@ -107,10 +107,10 @@ class AudioFlinger :
+ public:
+     static const char* getServiceName() ANDROID_API { return "media.audio_flinger"; }
+ 
+-#ifdef MTK_HARDWARE
+-    virtual status_t SetAudioData(int par1,size_t len, void *ptr);
+-    virtual status_t GetAudioData(int par1,size_t len, void *ptr);
+-#endif
++//~ #ifdef MTK_HARDWARE
++    //~ virtual status_t SetAudioData(int par1,size_t len, void *ptr);
++    //~ virtual status_t GetAudioData(int par1,size_t len, void *ptr);
++//~ #endif
+ 
+     virtual     status_t    dump(int fd, const Vector<String16>& args);
+ 
+diff --git a/services/audioflinger/AudioResampler.cpp b/services/audioflinger/AudioResampler.cpp
+index 6b7d782..9452e35 100644
+--- a/services/audioflinger/AudioResampler.cpp
++++ b/services/audioflinger/AudioResampler.cpp
+@@ -25,9 +25,9 @@
+ #include "AudioResampler.h"
+ #include "AudioResamplerSinc.h"
+ #include "AudioResamplerCubic.h"
+-#ifdef MTK_HARDWARE
+-#include "audioresampler/AudioResamplerMtkWrapper.h"
+-#endif
++//~ #ifdef MTK_HARDWARE
++//~ #include "audioresampler/AudioResamplerMtkWrapper.h"
++//~ #endif
+ 
+ #ifdef QTI_RESAMPLER
+ #include "AudioResamplerQTI.h"
+@@ -96,10 +96,10 @@ bool AudioResampler::qualityIsSupported(src_quality quality)
+ #ifdef QTI_RESAMPLER
+     case QTI_QUALITY:
+ #endif
+-#ifdef MTK_HARDWARE
+-    case MTK_QUALITY:
+-#endif
+-        return true;
++//~ #ifdef MTK_HARDWARE
++    //~ case MTK_QUALITY:
++//~ #endif
++        //~ return true;
+     default:
+         return false;
+     }
+@@ -121,8 +121,8 @@ void AudioResampler::init_routine()
+             ALOGD("forcing AudioResampler quality to %d", defaultQuality);
+ #ifdef QTI_RESAMPLER
+             if (defaultQuality < DEFAULT_QUALITY || defaultQuality > QTI_QUALITY) {
+-#elif defined(MTK_HARDWARE)
+-            if (defaultQuality < DEFAULT_QUALITY || defaultQuality > MTK_QUALITY) {
++//~ #elif defined(MTK_HARDWARE)
++            //~ if (defaultQuality < DEFAULT_QUALITY || defaultQuality > MTK_QUALITY) {
+ #else
+             if (defaultQuality < DEFAULT_QUALITY || defaultQuality > VERY_HIGH_QUALITY) {
+ #endif
+@@ -242,11 +242,11 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
+         resampler = new AudioResamplerQTI(bitDepth, inChannelCount, sampleRate);
+         break;
+ #endif
+-#ifdef MTK_HARDWARE
+-    case MTK_QUALITY:
+-        resampler = new AudioResamplerMtkWrapper(bitDepth, inChannelCount, (int32_t)sampleRate);
+-        break;
+-#endif
++//~ #ifdef MTK_HARDWARE
++    //~ case MTK_QUALITY:
++        //~ resampler = new AudioResamplerMtkWrapper(bitDepth, inChannelCount, (int32_t)sampleRate);
++        //~ break;
++//~ #endif
+     }
+ 
+     // initialize resampler
+diff --git a/services/audioflinger/Threads.cpp b/services/audioflinger/Threads.cpp
+index 63e156b..592a6cc 100644
+--- a/services/audioflinger/Threads.cpp
++++ b/services/audioflinger/Threads.cpp
+@@ -87,9 +87,9 @@
+ #include "postpro_patch.h"
+ #endif
+ 
+-#ifdef MTK_HARDWARE
+-#include "audioresampler/AudioResamplerMtkWrapper.h"
+-#endif
++//~ #ifdef MTK_HARDWARE
++//~ #include "audioresampler/AudioResamplerMtkWrapper.h"
++//~ #endif
+ 
+ // ----------------------------------------------------------------------------
+ 
+@@ -4951,13 +4951,13 @@ bool AudioFlinger::RecordThread::threadLoop()
+                                     upmix_to_stereo_i16_from_mono_i16((int16_t *)dst,
+                                             (int16_t *)src, framesIn);
+                                 } else {
+-#if MTK_HARDWARE
+-                                    MTK_downmix_to_mono_i16_from_stereo_i16((int16_t *)dst,
+-                                            (int16_t *)src, framesIn);
+-#else
++//~ #if MTK_HARDWARE
++                                    //~ MTK_downmix_to_mono_i16_from_stereo_i16((int16_t *)dst,
++                                            //~ (int16_t *)src, framesIn);
++//~ #else
+                                     downmix_to_mono_i16_from_stereo_i16((int16_t *)dst,
+                                             (int16_t *)src, framesIn);
+-#endif
++//~ #endif
+                                 }
+                             }
+                         }
+@@ -5040,13 +5040,13 @@ bool AudioFlinger::RecordThread::threadLoop()
+                         ditherAndClamp(mRsmpOutBuffer, mRsmpOutBuffer, framesOut);
+                         // the resampler always outputs stereo samples:
+                         // do post stereo to mono conversion
+-#ifdef MTK_HARDWARE
+-                        MTK_downmix_to_mono_i16_from_stereo_i16(buffer.i16, (int16_t *)mRsmpOutBuffer,
+-                                framesOut);
+-#else
++//~ #ifdef MTK_HARDWARE
++                        //~ MTK_downmix_to_mono_i16_from_stereo_i16(buffer.i16, (int16_t *)mRsmpOutBuffer,
++                                //~ framesOut);
++//~ #else
+                         downmix_to_mono_i16_from_stereo_i16(buffer.i16, (int16_t *)mRsmpOutBuffer,
+                                 framesOut);
+-#endif
++//~ #endif
+                     } else {
+                         ditherAndClamp((int32_t *)buffer.raw, mRsmpOutBuffer, framesOut);
+                     }
+@@ -5726,11 +5726,11 @@ void AudioFlinger::RecordThread::readInputParameters()
+         } else {
+             channelCount = 2;
+         }
+-#ifdef MTK_HARDWARE
+-        mResampler = AudioResampler::create(16, channelCount, mReqSampleRate, AudioResampler::MTK_QUALITY);
+-#else
++//~ #ifdef MTK_HARDWARE
++        //~ mResampler = AudioResampler::create(16, channelCount, mReqSampleRate, AudioResampler::MTK_QUALITY);
++//~ #else
+         mResampler = AudioResampler::create(16, channelCount, mReqSampleRate);
+-#endif
++//~ #endif
+         mResampler->setSampleRate(mSampleRate);
+         mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
+         mRsmpOutBuffer = new int32_t[mFrameCount * FCC_2];
+
+project system/core/
+diff --git a/libcutils/Android.mk b/libcutils/Android.mk
+index 60d57c5..35fffb9 100644
+--- a/libcutils/Android.mk
++++ b/libcutils/Android.mk
+@@ -142,7 +142,7 @@ LOCAL_STATIC_LIBRARIES := liblog
+ LOCAL_CFLAGS += $(targetSmpFlag)
+ 
+ ifeq ($(BOARD_HAS_MTK_HARDWARE), true)
+-LOCAL_WHOLE_STATIC_LIBRARIES += libpmem-dev
++#LOCAL_WHOLE_STATIC_LIBRARIES += libpmem-dev
+ endif
+ include $(BUILD_STATIC_LIBRARY)
+ 
+diff --git a/libcutils/klog.c b/libcutils/klog.c
+index d69fb10..da54b61 100644
+--- a/libcutils/klog.c
++++ b/libcutils/klog.c
+@@ -25,6 +25,11 @@
+ 
+ #include <cutils/klog.h>
+ 
++//#ifdef AMAZON_LOG
++extern int lab126_log_write(int bufID, int prio, const char *tag, const char *fmt, ...);
++extern int __vitals_log_print(int bufID, int prio, const char *tag, const char *fmt, ...);
++//#endif // AMAZON_LOG
++
+ static int klog_fd = -1;
+ static int klog_level = KLOG_DEFAULT_LEVEL;
+ 
+diff --git a/liblog/logd_write.c b/liblog/logd_write.c
+index 9e76a8e..4dcdb5d 100644
+--- a/liblog/logd_write.c
++++ b/liblog/logd_write.c
+@@ -245,6 +245,50 @@ static int __write_to_log_init(log_id_t log_id, struct iovec *vec, size_t nr)
+     return write_to_log(log_id, vec, nr);
+ }
+ 
++//#ifdef AMAZON_LOG
++int lab126_log_write(int bufID, int prio, const char *tag, const char *fmt, ...)
++{
++	va_list ap;
++	char buf[LOG_BUF_SIZE];
++	int _a = bufID;
++	int _b = prio;
++
++	// skip flooding logs
++	if (!tag)
++	{
++		tag = "";
++	}
++	if( strncmp(tag, "Sensors", 7) == 0
++		||  strncmp(tag, "qcom_se", 7) == 0 )
++	{
++		return 0;
++	}
++	// skip flooding logs
++
++	va_start(ap, fmt);
++	vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
++	va_end(ap);
++
++	char new_tag[128];
++	snprintf(new_tag, sizeof(new_tag), "AMZ-%s", tag);
++
++	return __android_log_buf_write(LOG_ID_MAIN, ANDROID_LOG_DEBUG, new_tag, buf);
++}
++
++int __vitals_log_print(int bufID, int prio, const char *tag, const char *fmt, ...)
++{
++	va_list ap;
++	char buf[LOG_BUF_SIZE];
++	int _a = bufID;
++	int _b = prio;
++
++	va_start(ap, fmt);
++	va_end(ap);
++
++	return __android_log_write(ANDROID_LOG_DEBUG, tag, "__vitals_log_print not implemented");
++}
++//#endif
++
+ int __android_log_write(int prio, const char *tag, const char *msg)
+ {
+     struct iovec vec[3];
