@@ -1,0 +1,598 @@
+
+#connectivity related init script
+import init.connectivity.rc
+import init.charging.rc
+import init.mt8135usb.rc
+#sensors init
+import init.sensors.rc
+   
+on init
+    # enable ZRAM swapping: 64MB
+    write /sys/block/zram0/disksize 0x4000000
+    mkswap /dev/block/zram0
+    swapon /dev/block/zram0
+
+    mkdir /mnt/media_rw/usbotg 0700 media_rw media_rw
+    mkdir /storage/usbotg 0700 root root
+    mount tmpfs tmpfs /storage/usbotg mode=0755,uid=1000,gid=1000
+
+# Backward compatibility
+    symlink /system/etc /etc
+    symlink /sys/kernel/debug /d
+
+# Right now vendor lives on the same filesystem as system,
+# but someday that may change.
+    symlink /system/vendor /vendor   
+
+# Create cgroup mount point for cpu accounting
+    mkdir /acct
+    mount cgroup none /acct cpuacct
+    mkdir /acct/uid
+    mkdir /system
+    mkdir /data 0771 system system
+    mkdir /cache 0770 system cache
+    mkdir /config 0500 root root
+
+    # See storage config details at http://source.android.com/tech/storage/
+    # mkdir /storage 0050 root sdcard_r
+    mkdir /storage 0055 root sdcard_r
+    mkdir /mnt/shell/emulated 0700 shell shell
+    mkdir /storage/emulated 0555 root root
+
+    export EXTERNAL_STORAGE /storage/emulated/legacy
+    export EMULATED_STORAGE_SOURCE /mnt/shell/emulated
+    export EMULATED_STORAGE_TARGET /storage/emulated
+
+    mount tmpfs tmpfs /storage/emulated mode=0705,uid=1023,gid=1023
+
+    # Support legacy paths
+    symlink /storage/emulated/legacy /sdcard
+    symlink /storage/emulated/legacy /mnt/sdcard
+    symlink /storage/emulated/legacy /storage/sdcard0
+    symlink /mnt/shell/emulated/0 /storage/emulated/legacy
+    symlink /mnt/shell/emulated/0 /storage/emulated/0    
+
+    mkdir /mnt/cd-rom 0000 system system
+
+    # Directory for putting things only root should see.
+    mkdir /mnt/secure 0700 root root
+    # Create private mountpoint so we can MS_MOVE from staging
+    mount tmpfs tmpfs /mnt/secure mode=0700,uid=0,gid=0
+
+    # Directory for staging bindmounts
+    mkdir /mnt/secure/staging 0700 root root
+
+    # Directory-target for where the secure container
+    # imagefile directory will be bind-mounted
+    mkdir /mnt/secure/asec  0700 root root
+
+    # Secure container public mount points.
+    mkdir /mnt/asec  0700 root system
+    mount tmpfs tmpfs /mnt/asec mode=0755,gid=1000
+
+    # Filesystem image public mount points.
+    mkdir /mnt/obb 0700 root system
+    mount tmpfs tmpfs /mnt/obb mode=0755,gid=1000
+
+    write /proc/sys/kernel/panic_on_oops 1
+    write /proc/sys/kernel/hung_task_timeout_secs 0
+    write /proc/cpu/alignment 4
+    write /proc/sys/kernel/sched_latency_ns 10000000
+    write /proc/sys/kernel/sched_wakeup_granularity_ns 2000000
+    write /proc/sys/kernel/sched_compat_yield 1
+    write /proc/sys/kernel/sched_child_runs_first 0
+    write /proc/sys/kernel/randomize_va_space 2
+    write /proc/sys/kernel/kptr_restrict 2
+    write /proc/sys/kernel/dmesg_restrict 1
+    write /proc/sys/vm/mmap_min_addr 32768
+    write /proc/sys/kernel/sched_rt_runtime_us 950000
+    write /proc/sys/kernel/sched_rt_period_us 1000000
+    write /proc/sys/kernel/core_pattern /dev/null
+    write /proc/sys/kernel/poweroff_cmd "/system/bin/reboot -p"
+    write /sys/power/pm_async 0
+
+
+# Allow everybody to read the xt_qtaguid resource tracking misc dev.
+# This is needed by any process that uses socket tagging.
+    chmod 0644 /dev/xt_qtaguid
+
+#HWComposer fb0
+    chmod 0660 /dev/graphics/fb0
+    chown system graphics /dev/graphics/fb0
+
+#HWComposer Vsync
+    chmod 0660 /dev/mtkfb_vsync
+    chown system graphics /dev/mtkfb_vsync
+
+
+#HWComposer fence
+    chmod 0660 /dev/sw_sync
+    chown system graphics /dev/sw_sync
+
+# Change ION driver permission
+    chmod 0666 /dev/ion
+    
+# Change MMP driver permission
+    chmod 0644 /dev/mmp
+
+# Change BWC permission
+    chmod 0664 /sys/bus/platform/drivers/mem_bw_ctrl/concurrency_scenario
+    chown system media /sys/bus/platform/drivers/mem_bw_ctrl/concurrency_scenario
+    
+# Change M4U driver permission
+#    chmod 0444 /dev/M4U_device
+ 
+# Change SMI driver permission   
+    chmod 0660 /dev/MTK_SMI
+    chown media graphics /dev/MTK_SMI
+
+# Change SMI mtk_sched permission
+    chmod 0660 /dev/mtk_sched
+    chown system media /dev/mtk_sched
+
+# Change DISP permission
+    chmod 0440 /dev/mtk_disp
+    chown system system /dev/mtk_disp
+
+# Change OVL permission
+    chmod 0440 /dev/mtk_ovl
+    chown system system /dev/mtk_ovl
+
+# Change Camera permission
+    chmod 0660 /dev/camera-sysram
+    chmod 0660 /dev/camera-isp
+    chmod 0660 /dev/camera-pipemgr
+    chmod 0660 /dev/kd_camera_hw
+    chmod 0660 /dev/kd_camera_flashlight
+    chmod 0660 /dev/kd_camera_hw_bus2
+    chmod 0660 /dev/FM50AF
+    chmod 0660 /dev/CAM_CAL_DRV
+    
+    chown system camera /dev/camera-sysram
+    chown system camera /dev/camera-isp
+    chown system camera /dev/camera-pipemgr
+    chown system camera /dev/kd_camera_hw
+    chown system camera /dev/kd_camera_flashlight
+    chown system camera /dev/kd_camera_hw_bus2
+    chown system camera /dev/FM50AF
+    chown system camera /dev/CAM_CAL_DRV
+
+# Change Jpeg permission
+ #   chmod 0444 /dev/mtk_jpeg
+ #   chmod 0444 /dev/mtk_gdma
+ #   chmod 0444 /dev/mtk_gfmt
+    chmod 0440 /dev/mtk_almk
+    
+# otg_test
+    chown root radio /dev/mt_otg_test
+    chmod 0660 /dev/mt_otg_test
+    
+# Enable AAL
+    setprop ro.mediatek.aal 1
+	
+    # mount debugfs for ftrace
+    mount debugfs none /sys/kernel/debug
+    chown media media /sys/devices/platform/mtkfb.0/backlight_mode
+    mkdir /persistbackup 0750 system system
+
+on boot
+    class_start late_start
+	
+start drvbd
+
+# start drm services
+exec /system/bin/sh /system/etc/kisd_starter.sh
+start kisd
+    
+# start nvram
+start NvRAMAgent
+# print boot reason
+# TODO: when sys.boot_completed works correctly on system, this should be replaced by:
+on property:sys.boot_completed=1
+	write /sys/kernel/mm/ksm/pages_to_scan 100
+	write /sys/kernel/mm/ksm/sleep_millisecs 700
+	write /sys/kernel/mm/ksm/run 1
+#       start bootinfo
+start bootinfo
+
+# start hdcp repeater mode
+#   start repeater
+
+## Thermal
+  #change permissions on thermal devices
+  chown root system /proc/mtktscpu/mtktscpu
+  chmod 0660 /proc/mtktscpu/mtktscpu
+  chown root system /proc/mtktsbattery/mtktsbattery
+  chmod 0660 /proc/mtktsbattery/mtktsbattery
+  chown root system /proc/mtktspa/mtktspa
+  chmod 0660 /proc/mtktspa/mtktspa
+  chown root system /proc/mtktspmic/mtktspmic
+  chmod 0660 /proc/mtktspmic/mtktspmic
+  chown root system /proc/driver/mtk_thermal_monitor
+  chmod 0660 /proc/driver/mtk_thermal_monitor
+  chown root radio /proc/driver/mtm_scen_call
+  chmod 0660 /proc/driver/mtm_scen_call
+  chown system system /proc/driver/mtk_cl_sd_pid
+  chmod 0660 /proc/driver/mtk_cl_sd_pid
+  chown root system /proc/wmt_tm/wmt_tm
+  chown system system /proc/wmt_tm/tm_pid
+  chown system system /proc/wmt_tm/tx_thro
+  chown system system /proc/wmt_tm/wmt_val
+  chown system system /proc/wmt_tm/wfd_stat
+  #start thermal services
+  start thermal_manager
+
+  chown system system /sys/devices/platform/tmp103-thermal/config
+  chown system system /sys/devices/platform/tmp103-thermal/temp
+  chown system system /sys/devices/platform/tmp103-thermal/thermal_zone
+  chown system system /sys/devices/platform/tmp103-cooling/cooler
+
+
+on fs
+    
+#    export EXTERNAL_STORAGE /mnt/sdcard
+#    mkdir /mnt/sdcard 0000 system system
+#    symlink /mnt/sdcard /sdcard
+
+# mount mtd partitions
+    # Mount /system rw first to give the filesystem a chance to save a checkpoint
+    write /proc/bootprof "INIT:NAND:Mount_START"
+    mount yaffs2 mtd@system /system
+
+# via: set ril and pppd
+    chown root /system/bin/pppd
+    chmod 4755 /system/bin/pppd
+    chown root /system/etc/ppp/ip-up-cdma
+    chmod 4755 /system/et/ppp/ip-up-cdma
+    chown root /system/etc/ppp/ipv6-up-cdma
+    chmod 4755 /system/etc/ppp/ipv6-up-cdma
+    chown root /system/etc/ppp/link-down-cdma
+    chmod 4755 /system/etc/ppp/link-down-cdma
+    mount iso9660 loop@/system/mobile_toolkit/iAmCdRom.iso /mnt/cd-rom ro
+    mount yaffs2 mtd@system /system ro remount
+    mount yaffs2 mtd@userdata /data nosuid nodev
+    mount yaffs2 mtd@cache /cache nosuid nodev
+    mount yaffs2 mtd@persisbackup /persistbackup nosuid nodev
+    write /proc/bootprof "INIT:NAND:Mount_END"
+
+    # mount mtd partitions
+    write /proc/bootprof "INIT:eMMC:Mount_START"
+    mount ext4 /dev/block/platform/mtk-msdc.0/by-name/system /system noatime wait commit=1,nodelalloc,discard,errors=panic
+    exec /system/bin/ext4_resize
+    mount_all /fstab.mt8135
+
+    mkdir /mnt/sqfs 0771 system system
+    mount squashfs loop@/system/sqfs/container.sqfs /mnt/sqfs wait ro
+
+    # RIL need to do this before the folder /system changed to read only
+    chown radio system /system/etc/ril
+    chmod 0770 /system/etc/ril
+    chmod 0444 /system/etc/ril/oper.lis
+    # Wifi thermal need to chmod before system is changed to read only
+    chown root system /system/etc/throttle.sh
+    chmod 0750 /system/etc/throttle.sh   
+    mount ext4 /dev/block/platform/mtk-msdc.0/by-name/system /system noatime ro remount 
+    write /proc/bootprof "INIT:eMMC:Mount_END"
+
+    # mount persistbackup img
+    wait /dev/block/platform/mtk-msdc.0/by-name/persisbackup
+    mount ext4 /dev/block/platform/mtk-msdc.0/by-name/persisbackup /persistbackup nodelalloc,discard,errors=panic
+    chmod 0750 /persistbackup/FQC/FQC_init.sh
+
+    # lock emmc boot0 partition
+    exec /system/bin/lock_emmc.sh
+
+# RGX init
+service pvrsrvctl /system/vendor/bin/pvrsrvctl --start 
+    class core
+    user root
+    group root
+    oneshot
+
+# RGX debug info init
+service pvrdebug /system/vendor/bin/pvrdebug -log trace -loggroups main,pm,rtd,spm,hwr,pow
+    class main
+    user root
+    group root
+    oneshot
+on post-fs-data
+    mkdir /data/nvram 2770 root system
+    mkdir /data/media 0770 media_rw media_rw
+    chmod 0770 /persistbackup
+    chown root system /persistbackup
+
+#VideoCodec
+    insmod /system/lib/modules/vcodec_kernel_driver.ko
+
+#HDMI
+    chmod 0660 /dev/hdmitx
+    chown media graphics /dev/hdmitx
+
+#MAX Headset
+    chmod 0666 /dev/eamp
+
+# Sensor
+    chmod 0660 /dev/hwmsensor
+    chmod 0660 /dev/msensor
+    chmod 0660 /dev/gsensor
+    chmod 0660 /dev/als_ps
+
+    chown system system /dev/hwmsensor
+    chown system system /dev/msensor
+    chown system system /dev/gsensor
+    chown system system /dev/als_ps
+
+    mkdir /data/misc/sensors 0664 system system
+    mkdir /data/misc/akmd 0664 system system    
+
+    # start hotplug service
+    start hotplug
+    start sensorcal
+
+    # filesystem encryption flow
+    setprop vold.post_fs_data_done 1
+
+#Define device for ATCID
+    chmod 0660 /dev/ttyGS0
+    chown system system /dev/ttyGS0
+    chmod 0660 /dev/ttyGS1
+    chown system system /dev/ttyGS1
+#
+#sensor service (begin)
+#
+
+#drm operation server
+service force_prov /system/bin/force_provisioning.sh
+    class main
+    user root
+    disabled
+    oneshot
+
+service kisd /system/bin/kisd
+    class main
+    user system
+    group system media drmrpc
+    disabled
+
+service nvram_daemon /system/bin/nvram_daemon
+    class main
+    user root
+    group system
+    oneshot
+
+service NvRAMAgent /system/bin/nvram_agent_binder
+	user system
+	group system
+	
+service drvbd /system/bin/drvbd
+    class main
+    user system
+    group system
+  
+#
+#sensor service (end)
+#    
+
+# virtual sdcard daemon running as media_rw (1023)
+service sdcard /system/bin/sdcard -u 1023 -g 1023 -l /data/media /mnt/shell/emulated
+	class late_start
+
+    # Refer to http://source.android.com/devices/tech/storage/index.html
+    # It said, "Starting in Android 4.4, multiple external storage devices are surfaced to developers through 
+    #           Context.getExternalFilesDirs(), Context.getExternalCacheDirs(), and Context.getObbDirs().
+    #           External storage devices surfaced through these APIs must be a semi-permanent part of the device (such as an SD card slot in a battery compartment).
+    #           Developers expect data stored in these locations to be available over long periods of time."
+    # Therefore, if the target has the SD card slot in a battery compartment, we need to specify SECONDARY_STORAGE (*** UN-Comment the following command ***)
+    # 
+    # export SECONDARY_STORAGE /storage/sdcard1
+
+service fuse_usbotg /system/bin/sdcard -u 1023 -g 1023 -d /mnt/media_rw/usbotg /storage/usbotg
+    class late_start
+    disabled
+   
+# hotplug service
+service hotplug /system/bin/hotplug
+    class main
+    disabled
+    user root
+    group root
+
+#thermal service
+service artvs /system/bin/thermal.virtual.sensor "/system/etc/.tp/thermal-virtual-sensor.conf" "/system/etc/.tp/tmp103-thermal.conf"
+     class main
+     user root
+     group system
+     oneshot
+     disabled
+
+service astvs /system/bin/thermal.virtual.sensor "/system/etc/.tp/aston-thermal-virtual-sensor.conf" "/system/etc/.tp/aston-tmp103-thermal.conf"
+    class main
+    user root
+    group system
+    oneshot
+    disabled
+
+on property:ro.product.model=KFARWI
+   start artvs
+
+on property:ro.product.model=KFASWI
+   start astvs
+
+service thermal_manager /system/bin/thermal_manager
+    disabled
+    user root
+    group root
+    oneshot
+
+service aal /system/bin/aal
+    class core
+    user system
+    group system graphics radio
+    
+service pq /system/bin/pq
+    class main
+    user system
+    group system graphics
+    oneshot
+	
+service auto_shutdown /system/bin/sh /auto_shutdown.sh
+	oneshot
+	disabled
+
+# Update the second boot logo
+#service bootlogoupdater /system/bin/boot_logo_updater
+#	class late_start
+#	oneshot
+
+service fqc_cmdd /persistbackup/FQC/FQC_init.sh
+	class main
+	user root
+	group root
+	oneshot
+
+service cmdd /sbin/cmdd
+        class main
+        user root
+        group root
+        oneshot
+
+service audio-daemon /system/bin/audiocmdservice_atci
+    class main
+    socket atci-audio stream 660 media system
+    user media
+    group media system sdcard_rw
+    disabled
+    oneshot
+
+service atci_service /system/bin/atci_service
+    socket atci-service stream 660 radio system
+    socket atci-serv-fw stream 660 radio system
+    user root
+    disabled
+    group radio system
+    oneshot
+
+service atcid-daemon-u /system/bin/atcid
+    user system
+    group radio system media
+    disabled
+    oneshot
+
+service atcid-daemon-e /system/bin/atcid
+    user root
+    group radio system
+    disabled
+    oneshot
+
+on property:init.svc.servicemanager=restarting
+	restart aal
+	restart pq
+
+on property:init.svc.bootanim=running
+	write /proc/bootprof "BOOT_Animation:START"
+
+on property:init.svc.bootanim=stopped
+	write /proc/bootprof "BOOT_Animation:END"
+	start auto_shutdown
+
+on property:ro.build.type=eng
+    start atci_service
+    start atcid-daemon-e
+    setrlimit 4 -1 -1
+
+on property:ro.build.type=userdebug
+    setrlimit 4 -1 -1
+
+service thermal_log /system/bin/thermal_log.sh
+        class late_start
+        user system
+        group system
+        oneshot
+        disabled
+
+service thermal_qa /system/bin/ThermalBenchmarkAutomation.sh
+       class late_start
+       user root
+       group root
+       oneshot
+       disabled
+
+service battery_log /system/bin/battery_log.sh
+	class main
+	user root
+	group system
+	oneshot
+	disabled
+
+service temperature_log /system/bin/temperature_log.sh
+	class main
+	user root
+	group system
+	oneshot
+	disabled
+
+service dmesg_log /system/bin/dmesg_log.sh
+	class main
+	user root
+	group system
+	oneshot
+	disabled
+
+service logcat_log /system/bin/logcat_log.sh
+	class main
+	user root
+	group system
+	oneshot
+	disabled
+
+service custom_debug /system/bin/custom_debug.sh
+	class main
+	user root
+	group system
+	oneshot
+	disabled
+
+service sensorcal /system/bin/sensorcal.sh
+	class main
+	user root
+	group root
+	disabled
+	oneshot
+
+on property:debug.log.thermal_qa.enable=y
+	start thermal_qa
+
+on property:vold.decrypt=trigger_restart_framework
+	start dmesg_log
+
+on property:debug.log.battery.enable=y
+	start battery_log
+
+on property:debug.log.temperature.enable=y
+	start temperature_log
+
+on property:debug.log.dmesg.enable=y
+	start dmesg_log
+
+on property:debug.log.logcat.enable=y
+	start logcat_log
+
+on property:debug.custom_debug.enable=y
+	start custom_debug
+
+service bootinfo /system/bin/PrintBootInfo
+        disabled
+        oneshot
+
+# service repeater /system/bin/HDCPRepeaterMode
+#        disabled
+#        oneshot
+
+on property:vold.decrypt=trigger_restart_min_framework
+	start kisd
+
+on property:vold.decrypt=trigger_restart_framework
+	start kisd
+
+on property:runtime.kisdIsReady=1
+	start force_prov

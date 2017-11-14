@@ -1,0 +1,81 @@
+#
+# system.prop for ariel
+#
+ro.sf.lcd_density=252
+#support opengles 3.0
+ro.opengles.version=196608
+ro.audio.silent=0
+
+persist.radio.combo.chipid=-1
+
+dolby.monospeaker=true
+ro.usb.vid=1949
+
+# ACOS_MOD_BEGIN
+com.mtk_enhancement=true
+# ACOS_MOD_END
+
+# System property for dolby 5.1 codec integration
+dolby.audio.sink.info=speaker
+
+# maximum backup size for factory reset whitelist in kB
+ro.recovery.wl.maxstore=524288
+
+#multi partition
+ro.multi.partition.support=false
+
+# set recovery battery level threshold to 23%
+persist.sys.recovery.batt_level=23
+
+#ACOS_MOD_BEGIN
+keyguard.ori.timeout=250
+# ACOS_MOD_END
+
+#enable prperty for ds2
+audio.dolby.ds2.enabled=true
+
+# no RIL
+ro.carrier=wifi-only
+ro.radio.noril=yes
+
+# enable software keys
+qemu.hw.mainkeys=0
+
+# mediatek stuff
+ro.mediatek.platform=MT8135
+ro.mediatek.chip_ver=S01
+ro.mediatek.version.release=ALPS.W10.24.p0
+persist.radio.combo.chipid=-1
+ro.wifi.channels=
+
+# usb-otg suppport
+persist.sys.isUsbOtgEnabled=1
+
+# we run out of memory on frames if we dont increase heap size
+dalvik.vm.heapstartsize=5m
+dalvik.vm.heapgrowthlimit=96m
+dalvik.vm.heapsize=256m
+dalvik.vm.heaptargetutilization=0.75
+dalvik.vm.heapminfree=512k
+dalvik.vm.heapmaxfree=2m
+dalvik.vm.skpheapstartsize=2m
+dalvik.vm.skpheapgrowthlimit=20m
+dalvik.vm.skpheaptargetutil=0.9
+dalvik.vm.skpheapminfree=256k
+dalvik.vm.skpheapmaxfree=512k
+
+# debug support
+persist.service.adb.enable=1                                                    
+persist.service.debuggable=1
+persist.sys.usb.config=mtp,adb
+
+#debug.log.base.path=/data/debug_service
+debug.log.base.path=/sdcard/debuglogs
+debug.log.battery.enable=n
+debug.log.battery.sleep=60
+debug.log.temperature.enable=n
+debug.log.temperature.sleep=10
+debug.log.thermal_qa.enable=n
+debug.log.dmesg.enable=y
+#debug.log.dmesg.wakeup=0
+debug.log.logcat.enable=y
